@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-surface text-ink font-sans antialiased;
+  }
+  /* الأرقام العربية الهندية في كل مكان */
+  body {
+    font-feature-settings: 'ss01';
+  }
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl bg-white border border-line shadow-card;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5
+           font-medium transition active:scale-[.98] disabled:opacity-40
+           disabled:pointer-events-none;
+  }
+  .btn-primary {
+    @apply btn bg-brand-700 text-white hover:bg-brand-800;
+  }
+  .btn-ghost {
+    @apply btn border border-line bg-white text-ink hover:bg-stone-50;
+  }
+  .btn-wa {
+    @apply btn bg-[#25D366] text-white hover:brightness-95;
+  }
+  .field {
+    @apply w-full rounded-xl border border-line bg-white px-3.5 py-2.5
+           outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-ink-soft;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+}
+
+/* شريط التمرير الأفقي في شبكة التكاليف */
+.scroll-x {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
