@@ -3,7 +3,9 @@ import { supabase } from '@/lib/supabase';
 import { useApp, useIsSteward } from '@/store/session';
 import { Card, Chip, Empty, Loading, PageHead, Sheet } from '@/components/ui';
 import { formatDateTime, relativeDay } from '@/lib/format';
-import type { Session, Summary, SummaryStatus, TaskType } from '@/lib/types';
+import { dbMessage } from '@/lib/errors';
+import { parseTasks, taskKey, type ParsedTask } from '@/lib/summary';
+import type { Session, Summary, SummaryStatus } from '@/lib/types';
 
 const STATUS_LABEL: Record<SummaryStatus, string> = {
   draft: 'مسودة',
@@ -77,7 +79,11 @@ export default function Summaries() {
     );
     if (error) {
       // القاعدة ترفض تعديل ملخص معتمد أو منشور لغير المدير والشيخ
-      alert('تعذّر الحفظ. الملخص المعتمد أو المنشور لا يعدّله إلا مدير المنصة أو الشيخ.');
+      alert(
+        error.code === '42501' || /row-level security/i.test(error.message)
+          ? 'تعذّر الحفظ. الملخص المعتمد أو المنشور لا يعدّله إلا مدير المنصة أو الشيخ.'
+          : dbMessage(error),
+      );
       return;
     }
     setEditing(null);
@@ -86,26 +92,37 @@ export default function Summaries() {
 
   /** استخراج التكاليف من سطور الملخص المعلّمة [عبادة] ونحوها. */
   async function extractTasks(row: Row) {
-    const md = row.summary?.summary_md ?? '';
-    const types: Record<string, TaskType> = {
-      عبادة: 'worship',
-      نشاط: 'activity',
-      مبادرة: 'initiative',
-      بحث: 'research',
-    };
-    const found: { type: TaskType; title: string }[] = [];
-    for (const line of md.split('\n')) {
-      const m = line.match(/^\s*-\s*\[(عبادة|نشاط|مبادرة|بحث)\]\s*(.+)$/);
-      if (m && m[2].trim()) found.push({ type: types[m[1]], title: m[2].trim() });
-    }
+    const found = parseTasks(row.summary?.summary_md ?? '');
     if (!found.length) {
       alert('لم يُعثر على سطور تكاليف. اكتبها بالصيغة: - [عبادة] ورد يومي');
       return;
     }
-    await supabase
+
+    // الضغط المتكرر لا يكرر التكليف: نستبعد ما أُضيف من قبل لهذه الجلسة
+    const { data: existing, error: e1 } = await supabase
       .from('tasks')
-      .insert(found.map((f) => ({ session_id: row.id, ...f, created_by: profile?.id ?? null })));
-    alert(`أُضيف ${found.length} تكليفًا إلى شاشة التكاليف.`);
+      .select('type, title')
+      .eq('session_id', row.id);
+    if (e1) {
+      alert(dbMessage(e1));
+      return;
+    }
+    const have = new Set(((existing ?? []) as ParsedTask[]).map(taskKey));
+    const fresh = found.filter((f) => !have.has(taskKey(f)));
+    if (!fresh.length) {
+      alert('كل هذه التكاليف مضافة من قبل.');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('tasks')
+      .insert(fresh.map((f) => ({ session_id: row.id, ...f, created_by: profile?.id ?? null })));
+    if (error) {
+      alert(dbMessage(error));
+      return;
+    }
+    const skipped = found.length - fresh.length;
+    alert(`أُضيف ${fresh.length} تكليفًا${skipped ? ` (وتُجوهل ${skipped} مكرر)` : ''}.`);
   }
 
   if (!activeCircleId) return <Empty title="لا يوجد مجلس نشط" hint="اختر مجلسًا من الأعلى." />;

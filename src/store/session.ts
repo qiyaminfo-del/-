@@ -98,6 +98,15 @@ export const useApp = create<AppState>((set, get) => ({
   },
 }));
 
+/** هل أنا «مدير» (لا شيخ) في المجلس النشط أو مجلسه الأب؟ يطابق is_circle_admin في القاعدة. */
+export function useIsAdmin(): boolean {
+  const roles = useApp((s) => s.roles);
+  const circles = useApp((s) => s.circles);
+  const circleId = useApp((s) => s.activeCircleId);
+  const parent = circles.find((c) => c.id === circleId)?.parent_circle_id;
+  return roles.some((r) => r.role === 'admin' && (r.circle_id === circleId || r.circle_id === parent));
+}
+
 /** هل أنا مدير أو شيخ في المجلس النشط أو مجلسه الأب؟ يطابق is_steward في القاعدة. */
 export function useIsSteward(): boolean {
   const roles = useApp((s) => s.roles);

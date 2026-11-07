@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { fetchAll, selectIn } from '@/lib/query';
+import { dbMessage } from '@/lib/errors';
 import { useApp } from '@/store/session';
 import { useCurrentSession, useTemplates } from '@/hooks/useSessions';
 import { Bar, Card, Chip, Empty, Loading, PageHead, Sheet, Stat } from '@/components/ui';
@@ -98,13 +99,14 @@ export default function MyList() {
 
   async function record(student: Row, outcome: ContactOutcome) {
     if (!session || !profile) return;
-    await supabase.from('contacts_log').insert({
+    const { error } = await supabase.from('contacts_log').insert({
       session_id: session.id,
       student_id: student.id,
       by_profile_id: profile.id,
       outcome,
       channel: 'whatsapp',
     });
+    if (error) alert(dbMessage(error));
     setWaFor(null);
     await load();
   }
@@ -346,7 +348,7 @@ function AddStudent({ circleId, onClose }: { circleId: string; onClose: () => vo
 
     setSaving(false);
     if (e1) {
-      setError(e1.message);
+      setError(dbMessage(e1));
       return;
     }
     onClose();

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { fetchAll, selectIn } from '@/lib/query';
+import { dbMessage } from '@/lib/errors';
 import { useApp, useIsSteward } from '@/store/session';
 import { useCurrentSession } from '@/hooks/useSessions';
 import { Card, Chip, Loading, PageHead } from '@/components/ui';
@@ -147,7 +148,7 @@ export default function Home() {
 
   async function markMine(task: Task, state: ProgressState) {
     if (!profile) return;
-    await supabase.from('task_progress').upsert(
+    const { error } = await supabase.from('task_progress').upsert(
       {
         task_id: task.id,
         student_id: profile.id,
@@ -158,6 +159,7 @@ export default function Home() {
       },
       { onConflict: 'task_id,student_id' },
     );
+    if (error) alert(dbMessage(error));
     await load();
   }
 

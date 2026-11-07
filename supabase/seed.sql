@@ -1,11 +1,13 @@
 -- ============================================================
 -- منصة مجالس — بيانات ابتدائية
--- شغّله بعد إنشاء أول مستخدم من واجهة Supabase Auth.
+-- لا يحتاج أي مستخدم. إعادة تشغيله لا تكرر القوالب.
 -- ============================================================
 
 -- قوالب رسائل واتساب العامة (circle_id = null أي لكل المجالس)
-insert into wa_templates (circle_id, key, label, body) values
-  (null, 'invite',  'دعوة أولى',
+insert into wa_templates (circle_id, key, label, body)
+select v.circle_id, v.key, v.label, v.body
+from (values
+  (null::uuid, 'invite',  'دعوة أولى',
    'السلام عليكم ورحمة الله {اسم_الطالب}،
 نسعد بدعوتك لحضور {اسم_المجلس} يوم {التاريخ} في {المكان}.
 نرجو تأكيد الحضور.'),
@@ -25,4 +27,7 @@ insert into wa_templates (circle_id, key, label, body) values
   (null, 'task',    'سؤال عن تكليف متعثر',
    'السلام عليكم {اسم_الطالب}،
 نتابع معك تكليف هذا الأسبوع. هل واجهك ما يعين على تأخره؟')
-on conflict do nothing;
+) as v(circle_id, key, label, body)
+where not exists (
+  select 1 from wa_templates t where t.circle_id is null and t.key = v.key
+);

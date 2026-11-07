@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { fetchAll, selectIn } from '@/lib/query';
+import { dbMessage } from '@/lib/errors';
 import { useApp } from '@/store/session';
 import { useCurrentSession, useTemplates } from '@/hooks/useSessions';
 import { Chip, Empty, Loading, PageHead, Sheet, Stat } from '@/components/ui';
@@ -91,18 +92,20 @@ export default function Tasks() {
   }, [tasks, students, progress]);
 
   async function setState(task: Task, student: Profile, state: ProgressState, reason?: ReasonCode) {
-    await supabase.from('task_progress').upsert(
+    const { error } = await supabase.from('task_progress').upsert(
       {
         task_id: task.id,
         student_id: student.id,
         state,
         percent: state === 'done' ? 100 : state === 'partial' ? 50 : 0,
-        reason: reason ?? null,
+        // السبب يخص التعثر وحده؛ لا يبقى عالقًا بعد الإنجاز
+        reason: state === 'stalled' ? (reason ?? null) : null,
         updated_by: profile?.id ?? null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'task_id,student_id' },
     );
+    if (error) alert(dbMessage(error));
     setCell(null);
     await load();
   }

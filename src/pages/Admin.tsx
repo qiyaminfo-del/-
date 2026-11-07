@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { fetchAll, selectIn } from '@/lib/query';
-import { useApp } from '@/store/session';
+import { dbMessage } from '@/lib/errors';
+import { useApp, useIsAdmin } from '@/store/session';
 import { Card, Chip, Empty, Loading, PageHead, Sheet } from '@/components/ui';
 import { formatDateTime } from '@/lib/format';
 import { ROLE_LABEL, type Profile, type RoleKey, type Session } from '@/lib/types';
@@ -26,6 +27,7 @@ interface RoleRow {
 
 export default function Admin() {
   const { profile, activeCircleId } = useApp();
+  const isAdmin = useIsAdmin();
   const [tab, setTab] = useState<'roles' | 'sessions'>('roles');
   const [roleRows, setRoleRows] = useState<RoleRow[] | null>(null);
   const [people, setPeople] = useState<Profile[]>([]);
@@ -36,7 +38,7 @@ export default function Admin() {
   const [newSession, setNewSession] = useState(false);
 
   const load = useCallback(async () => {
-    if (!activeCircleId) return;
+    if (!activeCircleId || !isAdmin) return;
     setRoleRows(null);
 
     const [{ data: roles }, enrolled, { data: sess }, visible] = await Promise.all([
@@ -84,7 +86,7 @@ export default function Admin() {
     setPeople(profs.filter((p) => studentSet.has(p.id)));
     setCandidates([...visible].sort((a, b) => a.full_name.localeCompare(b.full_name, 'ar')));
     setSessions((sess ?? []) as Session[]);
-  }, [activeCircleId]);
+  }, [activeCircleId, isAdmin]);
 
   useEffect(() => {
     void load();
@@ -92,11 +94,16 @@ export default function Admin() {
 
   async function revoke(row: RoleRow) {
     if (!confirm(`سحب دور «${ROLE_LABEL[row.role]}» من ${row.full_name}؟`)) return;
-    await supabase.from('roles').update({ revoked_at: new Date().toISOString() }).eq('id', row.id);
+    const { error } = await supabase
+      .from('roles')
+      .update({ revoked_at: new Date().toISOString() })
+      .eq('id', row.id);
+    if (error) alert(dbMessage(error));
     await load();
   }
 
   if (!activeCircleId) return <Empty title="لا يوجد مجلس نشط" hint="اختر مجلسًا من الأعلى." />;
+  if (!isAdmin) return <Empty title="للمدير فقط" hint="إسناد الأدوار والنطاقات من صلاحيات مدير المنصة." />;
   if (roleRows === null) return <Loading />;
 
   return (
@@ -231,10 +238,12 @@ function GrantRole({
       setErr('اختر الشخص أولًا.');
       return;
     }
-    const { error } = await supabase
-      .from('roles')
-      .insert({ profile_id: who, circle_id: circleId, role, granted_by: grantedBy });
-    if (error) setErr(error.message);
+    // upsert: إعادة إسناد دور سُحب سابقًا تُفعّله من جديد بدل أن تفشل بتعارض الفريد
+    const { error } = await supabase.from('roles').upsert(
+      { profile_id: who, circle_id: circleId, role, granted_by: grantedBy, revoked_at: null },
+      { onConflict: 'profile_id,circle_id,role' },
+    );
+    if (error) setErr(dbMessage(error));
     else onClose();
   }
 
@@ -360,7 +369,7 @@ function NewSession({ circleId, onClose }: { circleId: string; onClose: () => vo
       held_at: new Date(when).toISOString(),
       status: 'scheduled',
     });
-    if (error) setErr(error.message);
+    if (error) setErr(dbMessage(error));
     else onClose();
   }
 

@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import { supabase, isConfigured } from '@/lib/supabase';
+import { authMessage } from '@/lib/errors';
+
+const MIN_PASSWORD = 8;
 
 export default function Login() {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
@@ -11,21 +14,32 @@ export default function Login() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setMsg(null);
 
-    const { error } =
-      mode === 'signin'
-        ? await supabase.auth.signInWithPassword({ email, password })
-        : await supabase.auth.signUp({
-            email,
-            password,
-            options: { data: { full_name: name } },
-          });
+    if (mode === 'signup') {
+      if (!name.trim()) return setMsg('اكتب اسمك الكامل.');
+      if (password.length < MIN_PASSWORD) return setMsg(`كلمة المرور ${MIN_PASSWORD} أحرف على الأقل.`);
+    }
 
-    if (error) setMsg(error.message);
-    else if (mode === 'signup') setMsg('أُنشئ الحساب. تحقق من بريدك إن طُلب التفعيل.');
-    setBusy(false);
+    setBusy(true);
+    try {
+      const cleanEmail = email.trim();
+      const { error } =
+        mode === 'signin'
+          ? await supabase.auth.signInWithPassword({ email: cleanEmail, password })
+          : await supabase.auth.signUp({
+              email: cleanEmail,
+              password,
+              options: { data: { full_name: name.trim().slice(0, 120) } },
+            });
+
+      if (error) setMsg(authMessage(error));
+      else if (mode === 'signup') setMsg('أُنشئ الحساب. تحقق من بريدك إن طُلب التفعيل.');
+    } catch (err) {
+      setMsg(authMessage(err as Error));
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (!isConfigured) {
@@ -50,14 +64,16 @@ export default function Login() {
 
         {mode === 'signup' && (
           <div className="mb-3">
-            <label className="label">الاسم الكامل</label>
-            <input className="field" value={name} onChange={(e) => setName(e.target.value)} required />
+            <label className="label" htmlFor="login-name">الاسم الكامل</label>
+            <input id="login-name" autoComplete="name" maxLength={120} className="field" value={name} onChange={(e) => setName(e.target.value)} required />
           </div>
         )}
 
         <div className="mb-3">
-          <label className="label">البريد الإلكتروني</label>
+          <label className="label" htmlFor="login-email">البريد الإلكتروني</label>
           <input
+            id="login-email"
+            autoComplete="email"
             className="field"
             type="email"
             dir="ltr"
@@ -68,15 +84,17 @@ export default function Login() {
         </div>
 
         <div className="mb-4">
-          <label className="label">كلمة المرور</label>
+          <label className="label" htmlFor="login-password">كلمة المرور</label>
           <input
+            id="login-password"
             className="field"
             type="password"
             dir="ltr"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            minLength={6}
+            maxLength={72}
+            autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
           />
         </div>
 

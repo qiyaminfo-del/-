@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { fetchAll, selectIn } from '@/lib/query';
+import { dbMessage } from '@/lib/errors';
 import { useApp, useIsSteward } from '@/store/session';
 import { useTemplates } from '@/hooks/useSessions';
 import { Bar, Card, Chip, Empty, Loading, PageHead, Sheet, Stat } from '@/components/ui';
@@ -74,7 +75,7 @@ export default function Fees() {
       .select('receipt_no')
       .single();
 
-    if (error || !data) return error?.message ?? 'تعذّر التسجيل.';
+    if (error || !data) return error ? dbMessage(error) : 'تعذّر التسجيل.';
     setPaying(null);
     setReceipt({ no: data.receipt_no as number, name: row.full_name, amount });
     await load();
@@ -301,7 +302,7 @@ function StudentFees({
       .select('*')
       .eq('enrollment_id', row.enrollment_id)
       .order('paid_at', { ascending: false });
-    if (e) setError(e.message);
+    if (e) setError(dbMessage(e));
     setPayments((data ?? []) as Payment[]);
   }, [row.enrollment_id]);
 
@@ -320,7 +321,7 @@ function StudentFees({
       .update({ fee_plan_id: planId || null, exempt_reason: exempt ? reason.trim() : null })
       .eq('id', row.enrollment_id);
     if (e) {
-      setError(e.message);
+      setError(dbMessage(e));
       return;
     }
     setSaved(true);
@@ -339,7 +340,7 @@ function StudentFees({
       note: why.trim(),
     });
     if (e) {
-      setError(e.message);
+      setError(dbMessage(e));
       return;
     }
     await loadPayments();
@@ -454,7 +455,7 @@ function PlansSheet({
       .insert({ circle_id: circleId, name: name.trim(), total_amount: value });
     setBusy(false);
     if (e) {
-      setError(e.message);
+      setError(dbMessage(e));
       return;
     }
     setName('');

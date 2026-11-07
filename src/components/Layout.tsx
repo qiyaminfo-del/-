@@ -50,9 +50,11 @@ export default function Layout() {
   const active = circles.find((c) => c.id === activeCircleId);
   const here = roles.filter((r) => r.circle_id === activeCircleId || r.circle_id === active?.parent_circle_id);
   const steward = here.some((r) => r.role === 'admin' || r.role === 'sheikh');
+  const isAdmin = here.some((r) => r.role === 'admin');
   const myRoles = new Set(here.map((r) => r.role));
-  const visible = NAV.filter(
-    (n) => n.roles === 'all' || steward || n.roles.some((r) => myRoles.has(r)),
+  const visible = NAV.filter((n) =>
+    // الإدارة (الأدوار والنطاقات) للمدير وحده؛ الشيخ يرى بقية الشاشات
+    n.to === '/admin' ? isAdmin : n.roles === 'all' || steward || n.roles.some((r) => myRoles.has(r)),
   );
 
   return (
