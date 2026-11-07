@@ -5,9 +5,41 @@ import { fetchAll, selectIn } from '@/lib/query';
 import { dbMessage } from '@/lib/errors';
 import { useApp, useIsSteward } from '@/store/session';
 import { useCurrentSession } from '@/hooks/useSessions';
-import { Card, Chip, Loading, PageHead } from '@/components/ui';
+import {
+  ArrowLeft,
+  CalendarDays,
+  ChartColumn,
+  Check,
+  ClipboardCheck,
+  ListChecks,
+  MapPin,
+  NotebookPen,
+  PhoneCall,
+  Sparkles,
+  UsersRound,
+  Wallet,
+  type LucideIcon,
+} from 'lucide-react';
+import { Card, Chip, Empty, Loading, PageHead } from '@/components/ui';
 import { formatDateTime, relativeDay } from '@/lib/format';
 import { ROLE_LABEL, TASK_TYPE_LABEL, type ProgressState, type Task } from '@/lib/types';
+
+const DUTY_ICON: Record<string, LucideIcon> = {
+  '/my-list': PhoneCall,
+  '/attendance': ClipboardCheck,
+  '/fees': Wallet,
+  '/tasks': ListChecks,
+  '/summaries': NotebookPen,
+  '/report': ChartColumn,
+  '/team': UsersRound,
+};
+
+const TONE_BOX = {
+  bad: 'bg-rose-50 text-rose-700 ring-rose-200',
+  warn: 'bg-amber-50 text-amber-700 ring-amber-200',
+  good: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  neutral: 'bg-brand-50 text-brand-700 ring-brand-200',
+};
 
 interface Duty {
   to: string;
@@ -17,7 +49,7 @@ interface Duty {
 }
 
 export default function Home() {
-  const { profile, roles, activeCircleId } = useApp();
+  const { profile, roles, circles, activeCircleId } = useApp();
   const steward = useIsSteward();
   const { session } = useCurrentSession();
   const [duties, setDuties] = useState<Duty[] | null>(null);
@@ -167,6 +199,9 @@ export default function Home() {
 
   const myRoleNames = [...new Set(roles.map((r) => ROLE_LABEL[r.role]))].join(' · ');
 
+  const circle = circles.find((c) => c.id === activeCircleId);
+  const doneCount = myTasks.filter((t) => t.state === 'done').length;
+
   return (
     <>
       <PageHead
@@ -175,63 +210,106 @@ export default function Home() {
       />
 
       {session && (
-        <Card className="mb-4 border-brand-200 bg-brand-50">
-          <p className="text-sm text-ink-soft">المجلس القادم</p>
-          <p className="mt-0.5 font-semibold">{formatDateTime(session.held_at)}</p>
-        </Card>
+        <section className="relative mb-8 overflow-hidden rounded-3xl bg-brand-900 p-6 text-white shadow-lift animate-rise sm:p-8">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(520px_280px_at_90%_-10%,rgba(201,162,85,0.28),transparent_70%),radial-gradient(420px_300px_at_0%_120%,rgba(75,119,103,0.4),transparent_70%)]" />
+          <div className="relative flex flex-wrap items-end justify-between gap-5">
+            <div>
+              <p className="mb-2 flex items-center gap-2 text-sm text-gold-300">
+                <CalendarDays size={16} />
+                المجلس القادم
+              </p>
+              <p className="display text-[30px] leading-tight sm:text-[38px]">{formatDateTime(session.held_at)}</p>
+              {(circle?.location || circle?.name) && (
+                <p className="mt-2 flex items-center gap-2 text-sm text-white/60">
+                  <MapPin size={15} />
+                  {[circle?.name, circle?.location].filter(Boolean).join(' · ')}
+                </p>
+              )}
+            </div>
+            <span className="chip bg-white/10 text-gold-200 ring-1 ring-inset ring-white/15">
+              {relativeDay(session.held_at)}
+            </span>
+          </div>
+        </section>
       )}
 
       {duties.length > 0 && (
-        <>
-          <h2 className="mb-2 font-bold">ما عليك الآن</h2>
-          <div className="mb-6 space-y-2">
-            {duties.map((d) => (
-              <Link key={d.to + d.title} to={d.to} className="card flex items-center gap-3 p-4 hover:bg-stone-50">
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold">{d.title}</p>
-                  <p className="mt-0.5 text-sm text-ink-soft">{d.detail}</p>
-                </div>
-                <Chip tone={d.tone}>›</Chip>
-              </Link>
-            ))}
+        <section className="mb-9">
+          <h2 className="display mb-3 text-2xl">ما عليك الآن</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {duties.map((d, i) => {
+              const Icon = DUTY_ICON[d.to] ?? ArrowLeft;
+              return (
+                <Link
+                  key={d.to + d.title}
+                  to={d.to}
+                  style={{ animationDelay: `${i * 45}ms` }}
+                  className="card-link group flex items-center gap-4 p-4 animate-rise"
+                >
+                  <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl ring-1 ring-inset ${TONE_BOX[d.tone]}`}>
+                    <Icon size={22} strokeWidth={1.7} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold">{d.title}</p>
+                    <p className="mt-0.5 truncate text-sm text-ink-soft">{d.detail}</p>
+                  </div>
+                  <ArrowLeft
+                    size={18}
+                    className="shrink-0 text-ink-faint transition group-hover:-translate-x-1 group-hover:text-brand-700"
+                  />
+                </Link>
+              );
+            })}
           </div>
-        </>
+        </section>
       )}
 
       {myTasks.length > 0 && (
-        <>
-          <h2 className="mb-2 font-bold">تكاليفي</h2>
-          <div className="space-y-2">
-            {myTasks.map((t) => (
-              <Card key={t.id} className="flex items-center gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate font-medium">{t.title}</span>
-                    <Chip tone="info">{TASK_TYPE_LABEL[t.type]}</Chip>
-                  </div>
-                  {t.description && <p className="mt-0.5 text-xs text-ink-soft">{t.description}</p>}
-                </div>
-                <button
-                  onClick={() => void markMine(t, t.state === 'done' ? 'not_started' : 'done')}
-                  className={`btn px-3 py-2 text-xs ${
-                    t.state === 'done' ? 'bg-emerald-600 text-white' : 'border border-line bg-white'
-                  }`}
-                >
-                  {t.state === 'done' ? 'أنجزته' : 'تسجيل إنجاز'}
-                </button>
-              </Card>
-            ))}
+        <section>
+          <div className="mb-3 flex items-end justify-between">
+            <h2 className="display text-2xl">تكاليفي</h2>
+            <span className="text-sm text-ink-soft">
+              {doneCount} من {myTasks.length} منجزة
+            </span>
           </div>
-        </>
+          <div className="space-y-2.5">
+            {myTasks.map((t) => {
+              const done = t.state === 'done';
+              return (
+                <Card key={t.id} className="flex items-center gap-4">
+                  <button
+                    onClick={() => void markMine(t, done ? 'not_started' : 'done')}
+                    aria-label={done ? 'إلغاء الإنجاز' : 'تسجيل إنجاز'}
+                    aria-pressed={done}
+                    className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border transition ${
+                      done
+                        ? 'border-emerald-600 bg-emerald-600 text-white'
+                        : 'border-stone-300 bg-white text-transparent hover:border-emerald-500 hover:text-emerald-500/50'
+                    }`}
+                  >
+                    <Check size={18} strokeWidth={2.4} />
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`font-medium ${done ? 'text-ink-faint line-through' : ''}`}>{t.title}</span>
+                      <Chip tone="info">{TASK_TYPE_LABEL[t.type]}</Chip>
+                    </div>
+                    {t.description && <p className="mt-0.5 text-xs text-ink-soft">{t.description}</p>}
+                  </div>
+                  {done && <span className="text-xs font-medium text-emerald-700">أنجزته</span>}
+                </Card>
+              );
+            })}
+          </div>
+        </section>
       )}
 
       {duties.length === 0 && myTasks.length === 0 && (
-        <Card>
-          <p className="font-semibold">لا مهام عليك الآن</p>
-          <p className="mt-1 text-sm text-ink-soft">
-            ستظهر هنا تكاليفك ومسؤولياتك فور إسنادها إليك من مدير المنصة.
-          </p>
-        </Card>
+        <Empty
+          icon={Sparkles}
+          title="لا مهام عليك الآن"
+          hint="ستظهر هنا تكاليفك ومسؤولياتك فور إسنادها إليك من مدير المنصة."
+        />
       )}
     </>
   );

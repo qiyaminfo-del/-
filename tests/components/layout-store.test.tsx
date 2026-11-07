@@ -1,4 +1,5 @@
-import { render, renderHook, screen, act } from '@testing-library/react';
+import { render, renderHook, screen, act, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { IDBFactory } from 'fake-indexeddb';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -58,7 +59,9 @@ const renderLayout = () =>
     </MemoryRouter>,
   );
 
-const navLabels = () => screen.getAllByRole('link').map((a) => a.textContent);
+const sideNav = () => within(screen.getByRole('navigation', { name: 'التنقل الرئيسي' }));
+const bottomNav = () => within(screen.getByRole('navigation', { name: 'التنقل السفلي' }));
+const navLabels = () => sideNav().getAllByRole('link').map((a) => a.textContent);
 
 beforeEach(() => {
   globalThis.indexedDB = new IDBFactory();
@@ -119,6 +122,70 @@ describe('القائمة السفلية تتبع دورك في المجلس ال
     setApp([], 'A', [circle('A')]);
     renderLayout();
     expect(navLabels()).not.toContain('الحضور');
+  });
+});
+
+describe('الشريط الجانبي والسفلي', () => {
+  beforeEach(() => localStorage.removeItem('majales.sidebar'));
+
+  it('الشريط الجانبي مقسّم إلى مجموعات بعناوين', () => {
+    setApp([role('admin', 'A')], 'A', [circle('A')]);
+    renderLayout();
+    for (const g of ['العمل اليومي', 'الإشراف', 'الإدارة']) {
+      expect(sideNav().getAllByText(g).length).toBeGreaterThan(0);
+    }
+  });
+
+  it('كل رابط في الشريط له أيقونة (SVG)', () => {
+    setApp([role('admin', 'A')], 'A', [circle('A')]);
+    renderLayout();
+    for (const a of sideNav().getAllByRole('link')) expect(a.querySelector('svg'), a.textContent ?? '').not.toBeNull();
+  });
+
+  it('الطيّ يُبقي أسماء الروابط لقارئ الشاشة، ويُحفظ التفضيل', async () => {
+    setApp([role('admin', 'A')], 'A', [circle('A')]);
+    renderLayout();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'طيّ الشريط' }));
+    expect(localStorage.getItem('majales.sidebar')).toBe('1');
+    // الأسماء ما زالت موجودة (sr-only) فتبقى الروابط قابلة للوصول
+    expect(navLabels()).toContain('الرسوم');
+    expect(sideNav().getByText('الرسوم')).toHaveClass('sr-only');
+    await user.click(screen.getAllByRole('button', { name: 'توسيع الشريط' })[0]);
+    expect(localStorage.getItem('majales.sidebar')).toBe('0');
+  });
+
+  it('التفضيل المحفوظ يُستعاد عند فتح الصفحة', () => {
+    localStorage.setItem('majales.sidebar', '1');
+    setApp([role('admin', 'A')], 'A', [circle('A')]);
+    renderLayout();
+    expect(screen.getAllByRole('button', { name: 'توسيع الشريط' }).length).toBeGreaterThan(0);
+  });
+
+  it('الشريط السفلي للهاتف: ٥ شاشات أو أقل تظهر كلها بلا «المزيد»', () => {
+    setApp([role('attendance_officer', 'A')], 'A', [circle('A')]);
+    renderLayout();
+    expect(bottomNav().getAllByRole('link').map((a) => a.textContent)).toEqual(['الرئيسية', 'الحضور']);
+    expect(bottomNav().queryByRole('button', { name: /المزيد/ })).not.toBeInTheDocument();
+  });
+
+  it('أكثر من ٥ شاشات: أول ٤ + «المزيد» يفتح الباقي مع تسجيل الخروج', async () => {
+    setApp([role('admin', 'A')], 'A', [circle('A')]);
+    renderLayout();
+    const user = userEvent.setup();
+    expect(bottomNav().getAllByRole('link')).toHaveLength(4);
+    await user.click(bottomNav().getByRole('button', { name: /المزيد/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'المزيد' });
+    const rest = within(dialog).getAllByRole('link').map((a) => a.textContent);
+    expect(rest).toEqual(['التكاليف', 'التفريغ', 'تقرير المجلس', 'أداء الفريق', 'الإدارة']);
+    expect(within(dialog).getByRole('button', { name: /خروج/ })).toBeInTheDocument();
+  });
+
+  it('الشخص يرى اسمه وأعلى أدواره', () => {
+    setApp([role('finance_officer', 'A'), role('admin', 'A')], 'A', [circle('A')]);
+    renderLayout();
+    expect(screen.getAllByText('محسن علي').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('مدير المنصة').length).toBeGreaterThan(0);
   });
 });
 

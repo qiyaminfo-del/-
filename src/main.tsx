@@ -1,6 +1,10 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import '@fontsource-variable/readex-pro/index.css';
+import '@fontsource/markazi-text/arabic-600.css';
+import '@fontsource/markazi-text/arabic-700.css';
+import '@fontsource/markazi-text/latin-700.css';
 import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

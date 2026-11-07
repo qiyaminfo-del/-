@@ -10,7 +10,7 @@
  */
 import { openDB, type IDBPDatabase } from 'idb';
 import type { PostgrestError } from '@supabase/supabase-js';
-import { supabase } from './supabase';
+import { supabase } from '@/lib/supabase';
 
 export interface QueuedOp {
   id?: number;

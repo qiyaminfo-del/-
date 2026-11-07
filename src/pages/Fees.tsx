@@ -199,7 +199,7 @@ export default function Fees() {
         <Sheet open onClose={() => setReceipt(null)} title="تم التحصيل">
           <div className="card bg-brand-50 p-5 text-center">
             <p className="text-sm text-ink-soft">إيصال رقم</p>
-            <p className="text-3xl font-bold text-brand-800">{formatNumber(receipt.no)}</p>
+            <p className="display text-5xl text-brand-800">{formatNumber(receipt.no)}</p>
             <p className="mt-3 font-semibold">{receipt.name}</p>
             <p className="text-lg">{formatMoney(receipt.amount)}</p>
             <p className="mt-3 text-xs text-ink-faint">
@@ -386,7 +386,7 @@ function StudentFees({
 
       {error && <p className="mb-3 text-sm text-rose-700">{error}</p>}
 
-      <h3 className="mb-2 font-bold">الإيصالات</h3>
+      <h3 className="display mb-2 text-xl">الإيصالات</h3>
       {payments === null ? (
         <Loading />
       ) : payments.length === 0 ? (

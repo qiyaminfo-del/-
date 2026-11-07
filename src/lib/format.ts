@@ -40,8 +40,20 @@ export function daysSince(iso: string | null | undefined): number | null {
 }
 
 export function relativeDay(iso: string | null | undefined): string {
-  const d = daysSince(iso);
-  if (d == null) return 'لم يحدث بعد';
+  if (!iso) return 'لم يحدث بعد';
+  const diff = new Date(iso).getTime() - Date.now();
+
+  // المستقبل: «بعد ٣ أيام». التقريب بالأعلى كي لا يُقال «اليوم» لموعد بعد ٢٠ ساعة
+  if (diff > 0) {
+    const d = Math.ceil(diff / 86_400_000);
+    if (d <= 1) return 'اليوم أو غدًا';
+    if (d === 2) return 'بعد يومين';
+    if (d < 7) return `بعد ${formatNumber(d)} أيام`;
+    if (d < 30) return `بعد ${formatNumber(Math.ceil(d / 7))} أسابيع`;
+    return `بعد ${formatNumber(Math.ceil(d / 30))} شهور`;
+  }
+
+  const d = daysSince(iso) ?? 0;
   if (d === 0) return 'اليوم';
   if (d === 1) return 'أمس';
   if (d < 7) return `منذ ${formatNumber(d)} أيام`;

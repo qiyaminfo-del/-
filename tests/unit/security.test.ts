@@ -52,10 +52,15 @@ describe('رؤوس الأمان (vercel.json)', () => {
     expect(csp['connect-src']).toEqual(["'self'", 'https://*.supabase.co', 'wss://*.supabase.co']);
   });
 
-  it('CSP: الخطوط والأنماط من Google Fonts فقط، والأنماط المضمّنة للسمات فقط', () => {
-    expect(csp['font-src']).toEqual(['https://fonts.gstatic.com']);
-    expect(csp['style-src']).toEqual(["'self'", 'https://fonts.googleapis.com']);
+  it('CSP: الخطوط والأنماط من نفس الأصل فقط (لا Google Fonts)، والأنماط المضمّنة للسمات فقط', () => {
+    expect(csp['font-src']).toEqual(["'self'"]);
+    expect(csp['style-src']).toEqual(["'self'"]);
     expect(csp['style-src-attr']).toEqual(["'unsafe-inline'"]);
+  });
+
+  it('لا طلبات خارجية للخطوط في index.html ولا في CSS المصدر', () => {
+    expect(read('index.html')).not.toMatch(/fonts\.(googleapis|gstatic)\.com/);
+    expect(read('src/index.css')).not.toMatch(/https?:\/\//);
   });
 
   it.each([
@@ -135,6 +140,18 @@ describe('فحص الكود الساكن', () => {
 
   it('لا طلبات شبكة خام (fetch/XMLHttpRequest) خارج Supabase', () => {
     expect(all(/\bfetch\s*\(|XMLHttpRequest/)).toEqual([]);
+  });
+
+  it('عميل المعاينة الوهمي لا يُستورد من src ولا يُفعَّل إلا بمتغيّر صريح', () => {
+    expect(all(/mock-supabase|from ['"][^'"]*\/dev\//)).toEqual([]);
+    const cfg = read('vite.config.ts');
+    expect(cfg).toMatch(/process\.env\.VITE_DESIGN_MOCK === '1'/);
+    expect(cfg).toContain('mock-supabase');
+  });
+
+  it('كل استيراد للعميل بالمسار المستعار @/lib/supabase (كي يُستبدل كليًا في المعاينة)', () => {
+    const offenders = src.filter((f) => /from ['"]\.{1,2}\/(?:lib\/)?supabase['"]/.test(readFileSync(f, 'utf8')));
+    expect(offenders.map((f) => relative(root, f))).toEqual([]);
   });
 
   it('.env مستبعد من git وغير متتبَّع، و.env.example بلا قيم حقيقية', () => {

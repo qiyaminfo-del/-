@@ -17,8 +17,16 @@ function securityHeaders(): Record<string, string> {
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: { '@': path.resolve(__dirname, './src') },
+    alias: [
+      // معاينة التصميم ببيانات تجريبية فقط (VITE_DESIGN_MOCK=1). لا تُفعَّل في البناء الحقيقي.
+      ...(process.env.VITE_DESIGN_MOCK === '1'
+        ? [{ find: '@/lib/supabase', replacement: path.resolve(__dirname, './dev/mock-supabase.ts') }]
+        : []),
+      { find: '@', replacement: path.resolve(__dirname, './src') },
+    ],
   },
+  // لا تضمين لأي ملف داخل الـ JS/CSS (data:) كي تبقى سياسة CSP صارمة (الخطوط من 'self' فقط)
+  build: { assetsInlineLimit: 0 },
   server: { port: 5173 },
   preview: { headers: securityHeaders() },
   test: {

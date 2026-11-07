@@ -207,7 +207,7 @@ export default function SessionReport() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-5">
-      <h2 className="mb-2 font-bold">{title}</h2>
+      <h2 className="display mb-2.5 text-[22px]">{title}</h2>
       <div className="card divide-y divide-line p-0">{children}</div>
     </div>
   );

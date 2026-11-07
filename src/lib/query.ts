@@ -3,7 +3,7 @@
  * - Supabase يقف عند ألف صف بصمت، فنجلب على صفحات.
  * - .in() بمئات المعرّفات يطيل الرابط حتى يرفضه الخادم، فنقسّم المعرّفات.
  */
-import { supabase } from './supabase';
+import { supabase } from '@/lib/supabase';
 
 const PAGE = 1000;
 const CHUNK = 100;

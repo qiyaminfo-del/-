@@ -27,6 +27,18 @@ describe('تواريخ نسبية', () => {
     expect(daysSince('2026-11-04T12:00:00Z')).toBe(3);
   });
 
+  it('relativeDay للمستقبل لا يرجع أرقامًا سالبة', () => {
+    expect(relativeDay('2026-11-07T20:00:00Z')).toBe('اليوم أو غدًا');
+    expect(relativeDay('2026-11-09T12:00:00Z')).toBe('بعد يومين');
+    expect(relativeDay('2026-11-10T12:00:00Z')).toContain('بعد');
+    expect(relativeDay('2026-11-10T12:00:00Z')).toContain('أيام');
+    expect(relativeDay('2026-11-20T12:00:00Z')).toContain('أسابيع');
+    expect(relativeDay('2027-02-01T12:00:00Z')).toContain('شهور');
+    for (const iso of ['2026-11-08T12:00:00Z', '2026-11-12T12:00:00Z', '2026-12-30T12:00:00Z']) {
+      expect(relativeDay(iso)).not.toMatch(/-|−|منذ/);
+    }
+  });
+
   it('relativeDay', () => {
     expect(relativeDay(null)).toBe('لم يحدث بعد');
     expect(relativeDay('2026-11-07T08:00:00Z')).toBe('اليوم');

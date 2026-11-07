@@ -2,12 +2,10 @@
  * عامل الخدمة لمنصة مجالس: يفتح التطبيق بلا إنترنت.
  * - الصفحة: الشبكة أولًا، وعند الانقطاع النسخة المحفوظة.
  * - ملفات /assets/ (أسماؤها مُبصمة): من الذاكرة أولًا.
- * - الخطوط: من الذاكرة أولًا.
  * - طلبات Supabase لا تمر من هنا أبدًا؛ بيانات الحضور يتولاها طابور IndexedDB.
  */
-const CACHE = 'majales-v1';
+const CACHE = 'majales-v2';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png'];
-const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -59,9 +57,5 @@ self.addEventListener('fetch', (event) => {
   if (url.origin === self.location.origin && (url.pathname.startsWith('/assets/') || SHELL.includes(url.pathname))) {
     event.respondWith(cacheFirst(request));
     return;
-  }
-
-  if (FONT_HOSTS.includes(url.hostname)) {
-    event.respondWith(cacheFirst(request));
   }
 });
