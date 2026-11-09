@@ -17,6 +17,11 @@ export function formatDateTime(iso: string | null | undefined): string {
   return `${dateFmt.format(d)} · ${timeFmt.format(d)}`;
 }
 
+export function formatTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  return timeFmt.format(new Date(iso));
+}
+
 export function formatMoney(n: number, currency = 'EGP'): string {
   return new Intl.NumberFormat('ar-EG', {
     style: 'currency',

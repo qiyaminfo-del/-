@@ -157,6 +157,9 @@ export function AutoField({
 }
 
 /* ---------- نافذة منبثقة ---------- */
+/** النوافذ المفتوحة بترتيب فتحها؛ Esc يخص آخرها */
+const sheetStack: string[] = [];
+
 export function Sheet({
   open,
   onClose,
@@ -170,18 +173,22 @@ export function Sheet({
 }) {
   const titleId = useId();
 
-  // Esc يغلق، ولا يتحرك ما خلف النافذة
+  // Esc يغلق النافذة العليا فقط (عند تراكب نافذتين)، ولا يتحرك ما خلفها
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    sheetStack.push(titleId);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && sheetStack[sheetStack.length - 1] === titleId) onClose();
+    };
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.removeEventListener('keydown', onKey);
+      sheetStack.splice(sheetStack.indexOf(titleId), 1);
       document.body.style.overflow = prev;
     };
-  }, [open, onClose]);
+  }, [open, onClose, titleId]);
 
   if (!open) return null;
   return (

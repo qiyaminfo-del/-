@@ -25,7 +25,7 @@ beforeEach(() => {
 
 const fillSignIn = async (email: string, pass: string) => {
   const user = userEvent.setup();
-  const [mail, pw] = [screen.getByLabelText('البريد الإلكتروني'), screen.getByLabelText('كلمة المرور')];
+  const [mail, pw] = [screen.getByLabelText('اسم المستخدم أو البريد الإلكتروني'), screen.getByLabelText('كلمة المرور')];
   await user.type(mail, email);
   await user.type(pw, pass);
   return user;
@@ -62,6 +62,15 @@ describe('شاشة الدخول', () => {
     await user.click(screen.getByRole('button', { name: 'دخول' }));
     expect(await screen.findByText(/تعذّر الاتصال/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'دخول' })).toBeEnabled();
+  });
+
+  it('اسم المستخدم (بلا @) يتحول لبريده الداخلي عند الدخول', async () => {
+    render(<Login />);
+    const user = await fillSignIn('  Hesham.A ', 'secret-pass');
+    await user.click(screen.getByRole('button', { name: 'دخول' }));
+    await waitFor(() =>
+      expect(h.signIn).toHaveBeenCalledWith({ email: 'hesham.a@members.majales.local', password: 'secret-pass' }),
+    );
   });
 
   it('الدخول يقبل كلمة مرور قصيرة قديمة (الحد ٨ للتسجيل الجديد فقط)', async () => {

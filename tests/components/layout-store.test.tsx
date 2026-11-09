@@ -73,13 +73,13 @@ describe('القائمة السفلية تتبع دورك في المجلس ال
   it('الطالب بلا أدوار لا يرى إلا الرئيسية', () => {
     setApp([], 'A', [circle('A')]);
     renderLayout();
-    expect(navLabels()).toEqual(['الرئيسية']);
+    expect(navLabels()).toEqual(['الرئيسية', 'الأوراد']);
   });
 
   it('مسؤول الحضور يرى الحضور فقط (لا رسوم ولا إدارة)', () => {
     setApp([role('attendance_officer', 'A')], 'A', [circle('A')]);
     renderLayout();
-    expect(navLabels()).toEqual(['الرئيسية', 'الحضور']);
+    expect(navLabels()).toEqual(['الرئيسية', 'الحضور', 'الأوراد', 'التقارير']);
   });
 
   it('المدير يرى كل الشاشات في مجلسه', () => {
@@ -92,8 +92,10 @@ describe('القائمة السفلية تتبع دورك في المجلس ال
       'الرسوم',
       'التكاليف',
       'التفريغ',
+      'الأوراد',
       'تقرير المجلس',
       'أداء الفريق',
+      'التقارير',
       'الإدارة',
     ]);
   });
@@ -101,7 +103,7 @@ describe('القائمة السفلية تتبع دورك في المجلس ال
   it('مدير مجلس A لا يرى أزرار الإدارة وهو في مجلس B', () => {
     setApp([role('admin', 'A')], 'B', [circle('A'), circle('B')]);
     renderLayout();
-    expect(navLabels()).toEqual(['الرئيسية']);
+    expect(navLabels()).toEqual(['الرئيسية', 'الأوراد']);
   });
 
   it('مدير المجلس الأب يدير المجلس الخاص التابع له', () => {
@@ -165,7 +167,7 @@ describe('الشريط الجانبي والسفلي', () => {
   it('الشريط السفلي للهاتف: ٥ شاشات أو أقل تظهر كلها بلا «المزيد»', () => {
     setApp([role('attendance_officer', 'A')], 'A', [circle('A')]);
     renderLayout();
-    expect(bottomNav().getAllByRole('link').map((a) => a.textContent)).toEqual(['الرئيسية', 'الحضور']);
+    expect(bottomNav().getAllByRole('link').map((a) => a.textContent)).toEqual(['الرئيسية', 'الحضور', 'الأوراد', 'التقارير']);
     expect(bottomNav().queryByRole('button', { name: /المزيد/ })).not.toBeInTheDocument();
   });
 
@@ -177,7 +179,7 @@ describe('الشريط الجانبي والسفلي', () => {
     await user.click(bottomNav().getByRole('button', { name: /المزيد/ }));
     const dialog = await screen.findByRole('dialog', { name: 'المزيد' });
     const rest = within(dialog).getAllByRole('link').map((a) => a.textContent);
-    expect(rest).toEqual(['التكاليف', 'التفريغ', 'تقرير المجلس', 'أداء الفريق', 'الإدارة']);
+    expect(rest).toEqual(['التكاليف', 'التفريغ', 'الأوراد', 'تقرير المجلس', 'أداء الفريق', 'التقارير', 'الإدارة']);
     expect(within(dialog).getByRole('button', { name: /خروج/ })).toBeInTheDocument();
   });
 

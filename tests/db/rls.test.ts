@@ -29,6 +29,8 @@ const SESS = { A: id(600), B: id(601) };
 const TASK = { A: id(700), B: id(701) };
 const PAY = { A: id(800), B: id(801) };
 const NOTE = { A: id(900), B: id(901) };
+// الرسوم المستحقة (الطالب صاحب الحساب studentA بلا رسوم عمدًا)
+const DUE = { A1: id(960), A2: id(961), B1: id(963) };
 const CONTACT = { A1: id(950), A2: id(951), B: id(952) };
 
 const A = { circle: CIRCLE.A, session: SESS.A, task: TASK.A, student: S.sA1, enrollment: E.A1, payment: PAY.A, note: NOTE.A, contact: CONTACT.A1, plan: FP.A };
@@ -160,7 +162,14 @@ async function seed() {
        ($1,$2,$3,$4,'confirmed','ملاحظة خاصة'), ($5,$2,$6,$4,'no_answer',null), ($7,$8,$9,$10,'confirmed',null)`,
     [CONTACT.A1, SESS.A, S.sA1, U.contactA, CONTACT.A2, S.sA2, CONTACT.B, SESS.B, S.sB1, U.adminB],
   );
-  await q('insert into payments(id,enrollment_id,amount) values ($1,$2,100), ($3,$4,50)', [PAY.A, E.A1, PAY.B, E.B1]);
+  await q(
+    `insert into fee_dues(id,enrollment_id,fee_plan_id,label,amount) values
+       ($1,$2,$3,'خطة أ',300), ($4,$5,$3,'خطة أ',300), ($6,$7,$8,'خطة ب',500)`,
+    [DUE.A1, E.A1, FP.A, DUE.A2, E.A2, DUE.B1, E.B1, FP.B],
+  );
+  await q('insert into payments(id,enrollment_id,due_id,amount) values ($1,$2,$3,100), ($4,$5,$6,50)', [
+    PAY.A, E.A1, DUE.A1, PAY.B, E.B1, DUE.B1,
+  ]);
   await q("insert into summaries(session_id,summary_md,status,by_profile_id) values ($1,'مسودة','draft',$2)", [SESS.A, U.transA]);
   await q("insert into summaries(session_id,summary_md,status,published_at) values ($1,'منشور','published',now())", [SESS.B]);
   await q("insert into sheikh_notes(id,student_id,body) values ($1,$2,'سري أ'), ($3,$4,'سري ب')", [NOTE.A, S.sA1, NOTE.B, S.sB1]);
@@ -253,7 +262,7 @@ suite('العزل بين المجالس: لا يرى المدير ولا يلم�
   it('مدير أ لا ينشئ جلسة ولا تكليفًا ولا دفعة ولا دورًا في مجلس ب', async () => {
     await mustFail(U.adminA, 'insert into sessions(circle_id,held_at) values ($1, now())', [CIRCLE.B]);
     await mustFail(U.adminA, "insert into tasks(session_id,type,title) values ($1,'worship','x')", [SESS.B]);
-    await mustFail(U.adminA, 'insert into payments(enrollment_id,amount) values ($1, 10)', [E.B1]);
+    await mustFail(U.adminA, 'insert into payments(enrollment_id,due_id,amount) values ($1,$2,10)', [E.B1, DUE.B1]);
     await mustFail(U.adminA, "insert into roles(profile_id,circle_id,role) values ($1,$2,'contact_officer')", [U.outsider, CIRCLE.B]);
     await mustFail(U.adminA, "insert into task_progress(task_id,student_id,state) values ($1,$2,'done')", [TASK.B, S.sB1].map(String), /row-level/);
     await mustFail(U.adminA, "insert into sheikh_notes(student_id,body) values ($1,'x')", [S.sB1]);
@@ -308,7 +317,7 @@ suite('أقل صلاحية لكل دور', () => {
     expect(await count(U.contactA, 'select count(*)::int n from v_enrollment_balance')).toBe(0); // لا مستحق ولا خطة
     await mustAffectNothing(U.contactA, "update enrollments set fee_plan_id=null, exempt_reason='x'");
     await mustFail(U.contactA, 'insert into enrollments(circle_id,student_id) values ($1,$2)', [CIRCLE.A, U.outsider]);
-    await mustFail(U.contactA, "insert into payments(enrollment_id,amount) values ($1,10)", [E.A1]);
+    await mustFail(U.contactA, "insert into payments(enrollment_id,due_id,amount) values ($1,$2,10)", [E.A1, DUE.A1]);
     await mustFail(U.contactA, "insert into roles(profile_id,circle_id,role) values ($1,$2,'admin')", [U.contactA, CIRCLE.A]);
   });
 
@@ -320,8 +329,8 @@ suite('أقل صلاحية لكل دور', () => {
   it('مسؤول الرسوم: دفعات نطاقه فقط، ولا يحصّل خارجه', async () => {
     expect(await count(U.finA, 'select count(*)::int n from payments')).toBe(1);
     expect(await count(U.finA, 'select count(*)::int n from v_enrollment_balance')).toBe(1);
-    await mustAffect(U.finA, "insert into payments(enrollment_id,amount) values ($1,25)", [E.A1]);
-    await mustFail(U.finA, "insert into payments(enrollment_id,amount) values ($1,25)", [E.A2], /row-level/);
+    await mustAffect(U.finA, "insert into payments(enrollment_id,due_id,amount) values ($1,$2,25)", [E.A1, DUE.A1]);
+    await mustFail(U.finA, "insert into payments(enrollment_id,due_id,amount) values ($1,$2,25)", [E.A2, DUE.A2], /row-level/);
     expect(await count(U.finA, 'select count(*)::int n from sheikh_notes')).toBe(0);
     await mustFail(U.finA, "insert into attendance(session_id,student_id,state) values ($1,$2,'present')", [SESS.A, S.sA2]);
   });
@@ -449,7 +458,7 @@ suite('الإيصالات والرسوم', () => {
 
   it('المحصِّل يُسجَّل من حساب المُنفِّذ ولو أرسل غيره', async () => {
     await as(U.finA, async (c) => {
-      const r = await attempt(c, 'insert into payments(enrollment_id,amount,collected_by) values ($1,10,$2) returning collected_by', [E.A1, U.adminA]);
+      const r = await attempt(c, 'insert into payments(enrollment_id,due_id,amount,collected_by) values ($1,$2,10,$3) returning collected_by', [E.A1, DUE.A1, U.adminA]);
       expect(r.ok && r.rows[0].collected_by).toBe(U.finA);
     });
   });
@@ -488,15 +497,25 @@ suite('الإيصالات والرسوم', () => {
     await mustAffectNothing(U.adminA, 'delete from payments');
   });
 
-  it('الإعفاء يُسقط المستحق إلى صفر، ومن لا خطة له مستحقه صفر', async () => {
+  it('الإعفاء الجزئي يُنقص المستحق، ولا يُسمح بإعفاء يجعل المدفوع أكبر من الصافي', async () => {
     await as(U.adminA, async (c) => {
-      await c.query("update enrollments set exempt_reason='يتيم' where id=$1", [E.A1]);
-      const r = await c.query('select due, remaining from v_enrollment_balance where enrollment_id=$1', [E.A1]);
-      expect(Number(r.rows[0].due)).toBe(0);
-      expect(Number(r.rows[0].remaining)).toBeLessThanOrEqual(0); // دفع ١٠٠ لكنه معفى
-      await c.query('update enrollments set exempt_reason=null, fee_plan_id=null where id=$1', [E.A1]);
-      const r2 = await c.query('select due from v_enrollment_balance where enrollment_id=$1', [E.A1]);
+      // دفع ١٠٠ من ٣٠٠: إعفاء كامل يجعل الصافي صفرًا أقل من المدفوع → مرفوض
+      const full = await attempt(c, "update fee_dues set exempt_amount=300, exempt_reason='يتيم' where id=$1", [DUE.A1]);
+      expect(!full.ok && full.error.message).toMatch(/المدفوع/);
+      // إعفاء ٢٠٠ بسبب: الصافي ١٠٠ = المدفوع → «مسددة»
+      expect((await attempt(c, "update fee_dues set exempt_amount=200, exempt_reason='ظرف' where id=$1", [DUE.A1])).ok).toBe(true);
+      const r = await c.query('select due, remaining, status, exempted from v_enrollment_balance where enrollment_id=$1', [E.A1]);
+      expect(Number(r.rows[0].due)).toBe(100);
+      expect(Number(r.rows[0].remaining)).toBe(0);
+      expect(Number(r.rows[0].exempted)).toBe(200);
+      expect(r.rows[0].status).toBe('paid');
+      // إعفاء بلا سبب مرفوض
+      const noReason = await attempt(c, 'update fee_dues set exempt_amount=50, exempt_reason=null where id=$1', [DUE.A2]);
+      expect(noReason.ok).toBe(false);
+      // الطالب بلا أي رسوم: المستحق صفر وحالته «لا رسوم»
+      const r2 = await c.query('select due, status from v_enrollment_balance where enrollment_id=$1', [E.studentA]);
       expect(Number(r2.rows[0].due)).toBe(0);
+      expect(r2.rows[0].status).toBe('none');
     });
   });
 });
@@ -570,7 +589,7 @@ suite('سجل التدقيق', () => {
 
   it('كل عملية تُسجَّل باسم فاعلها وفي مجلسها الصحيح', async () => {
     await as(U.adminA, async (c) => {
-      const { rows: r } = await c.query("insert into payments(enrollment_id,amount) select id, 7 from enrollments where id=$1 returning id", [E.A2]);
+      const { rows: r } = await c.query('insert into payments(enrollment_id,due_id,amount) values ($1,$2,7) returning id', [E.A2, DUE.A2]);
       const log = await c.query("select actor_id, circle_id, action from audit_log where entity='payments' and entity_id=$1", [r[0].id]);
       expect(log.rows).toHaveLength(1);
       expect(log.rows[0]).toMatchObject({ actor_id: U.adminA, circle_id: CIRCLE.A, action: 'INSERT' });

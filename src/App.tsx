@@ -13,6 +13,8 @@ import Summaries from '@/pages/Summaries';
 import SessionReport from '@/pages/SessionReport';
 import TeamReport from '@/pages/TeamReport';
 import Admin from '@/pages/Admin';
+import Wird from '@/pages/Wird';
+import Reports from '@/pages/Reports';
 
 export default function App() {
   const { loading, auth, init } = useApp();
@@ -36,6 +38,8 @@ export default function App() {
           <Route path="summaries" element={<Summaries />} />
           <Route path="report" element={<SessionReport />} />
           <Route path="team" element={<TeamReport />} />
+          <Route path="wird" element={<Wird />} />
+          <Route path="reports" element={<Reports />} />
           <Route path="admin" element={<Admin />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
