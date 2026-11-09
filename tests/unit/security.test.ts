@@ -94,7 +94,7 @@ describe('رؤوس الأمان (vercel.json)', () => {
   it('إعادة التوجيه لا تبتلع sw.js ولا الأصول ولا manifest', () => {
     const re = new RegExp(`^${vercel.rewrites[0].source}$`);
     for (const ok of ['/', '/fees', '/attendance', '/admin']) expect(re.test(ok), ok).toBe(true);
-    for (const kept of ['/sw.js', '/assets/index-abc.js', '/manifest.webmanifest', '/icon-192.png', '/apple-touch-icon.png']) {
+    for (const kept of ['/api/members', '/sw.js', '/assets/index-abc.js', '/manifest.webmanifest', '/icon-192.png', '/apple-touch-icon.png']) {
       expect(re.test(kept), kept).toBe(false);
     }
   });
@@ -138,8 +138,21 @@ describe('فحص الكود الساكن', () => {
     }
   });
 
-  it('لا طلبات شبكة خام (fetch/XMLHttpRequest) خارج Supabase', () => {
-    expect(all(/\bfetch\s*\(|XMLHttpRequest/)).toEqual([]);
+  it('لا طلبات شبكة خام خارج Supabase، إلا لخادمنا على نفس الأصل (/api/)', () => {
+    expect(all(/XMLHttpRequest/)).toEqual([]);
+    for (const f of src) {
+      for (const m of readFileSync(f, 'utf8').matchAll(/\bfetch\s*\(\s*([^,)]+)/g)) {
+        expect(m[1].trim(), relative(root, f)).toMatch(/^['"`]\/api\//);
+      }
+    }
+  });
+
+  it('خادم الأعضاء لا يعيد كلمة المرور ولا يسجّلها، والمفتاح السري من البيئة فقط', () => {
+    const api = read('api/members.ts');
+    expect(api).not.toMatch(/console\.\w+\([^)]*password/i);
+    expect(api).not.toMatch(/reply\([^)]*password/i);
+    expect(api).toMatch(/process\.env\.SUPABASE_SECRET_KEY/);
+    expect(api).not.toMatch(/sb_secret_[A-Za-z0-9]/);
   });
 
   it('عميل المعاينة الوهمي لا يُستورد من src ولا يُفعَّل إلا بمتغيّر صريح', () => {

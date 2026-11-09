@@ -36,12 +36,12 @@ const students: Row[] = NAMES.map(([full_name, university, major, age], i) => ({
 }));
 
 const officers: Row[] = [
-  { id: 'me', full_name: 'محسن علي', phone: '01000000000' },
-  { id: 'o1', full_name: 'هشام عبد العزيز' },
+  { id: 'me', full_name: 'محسن علي', phone: '01000000000', username: 'mohsen', account_kind: 'staff' },
+  { id: 'o1', full_name: 'هشام عبد العزيز', username: 'hesham', account_kind: 'staff' },
   { id: 'o2', full_name: 'طارق السعدني' },
   { id: 'o3', full_name: 'مصطفى عادل' },
   { id: 'o4', full_name: 'كريم رضوان' },
-  { id: 'o5', full_name: 'ياسر بدوي' },
+  { id: 'o5', full_name: 'ياسر بدوي', username: 'yasser', account_kind: 'staff', disabled_at: at(-2) },
 ];
 
 const circles: Row[] = [
@@ -61,6 +61,8 @@ const balance: Row[] = students.map((s, i) => {
     enrollment_id: `en${i}`, circle_id: 'c1', student_id: s.id, full_name: s.full_name, due, paid: paid[i],
     remaining: due - paid[i], last_paid_at: paid[i] ? at(-(i + 2), 12) : null,
     fee_plan_id: i === 3 ? null : 'fp1', exempt_reason: exempt ? 'يتيم' : null,
+    exempted: exempt ? 300 : 0, dues_count: i === 3 ? 0 : 1,
+    status: i === 3 ? 'none' : exempt ? 'exempt' : paid[i] >= due ? 'paid' : paid[i] > 0 ? 'partial' : 'unpaid',
   };
 });
 
@@ -72,12 +74,12 @@ const tables: Record<string, Row[]> = {
   fee_plans: [{ id: 'fp1', circle_id: 'c1', name: 'الفصل الدراسي الأول', total_amount: 300, installments: 3, currency: 'EGP' }],
   enrollments,
   roles: [
-    { id: 'r1', profile_id: 'me', circle_id: 'c1', role: 'admin', revoked_at: null },
-    { id: 'r2', profile_id: 'o1', circle_id: 'c1', role: 'contact_officer', revoked_at: null },
-    { id: 'r3', profile_id: 'o2', circle_id: 'c1', role: 'attendance_officer', revoked_at: null },
-    { id: 'r4', profile_id: 'o3', circle_id: 'c1', role: 'finance_officer', revoked_at: null },
-    { id: 'r5', profile_id: 'o4', circle_id: 'c1', role: 'tasks_officer', revoked_at: null },
-    { id: 'r6', profile_id: 'o5', circle_id: 'c1', role: 'transcription_officer', revoked_at: null },
+    { id: 'r1', profile_id: 'me', circle_id: 'c1', role: 'admin', revoked_at: null, scope_all: true },
+    { id: 'r2', profile_id: 'o1', circle_id: 'c1', role: 'contact_officer', revoked_at: null, scope_all: false },
+    { id: 'r3', profile_id: 'o2', circle_id: 'c1', role: 'attendance_officer', revoked_at: null, scope_all: true },
+    { id: 'r4', profile_id: 'o3', circle_id: 'c1', role: 'finance_officer', revoked_at: null, scope_all: false },
+    { id: 'r5', profile_id: 'o4', circle_id: 'c1', role: 'tasks_officer', revoked_at: null, scope_all: true },
+    { id: 'r6', profile_id: 'o5', circle_id: 'c1', role: 'transcription_officer', revoked_at: null, scope_all: false },
   ],
   assignments: ['r2', 'r3', 'r4', 'r5'].flatMap((r, k) =>
     students.slice(0, 6 + k).map((s) => ({ id: `${r}-${s.id}`, role_id: r, student_id: s.id, revoked_at: null })),
@@ -113,6 +115,50 @@ const tables: Record<string, Row[]> = {
     { id: 'w4', circle_id: null, key: 'task', label: 'سؤال عن تكليف متعثر', body: 'نتابع معك تكليف هذا الأسبوع.' },
   ],
   sheikh_notes: [],
+  student_groups: [
+    { id: 'g1', circle_id: 'c1', name: 'حلقة الفجر' },
+    { id: 'g2', circle_id: 'c1', name: 'حلقة المغرب' },
+  ],
+  student_group_members: students.map((s, i) => ({ group_id: i < 5 ? 'g1' : 'g2', student_id: s.id })),
+  worship_items: [
+    { id: 'w-prayer', circle_id: 'c1', name: 'الصلوات الخمس في وقتها', kind: 'check', unit: null, is_active: true, sort: 1 },
+    { id: 'w-quran', circle_id: 'c1', name: 'تلاوة القرآن', kind: 'count', unit: 'صفحة', is_active: true, sort: 2 },
+    { id: 'w-adhkar', circle_id: 'c1', name: 'أذكار الصباح والمساء', kind: 'check', unit: null, is_active: true, sort: 3 },
+    { id: 'w-qiyam', circle_id: 'c1', name: 'قيام الليل', kind: 'amount', unit: 'ركعة', is_active: true, sort: 4 },
+  ],
+  wird_levels: [
+    { id: 'lv1', circle_id: 'c1', name: 'المستوى الأول', description: 'الصلوات الخمس', sort: 1 },
+    { id: 'lv2', circle_id: 'c1', name: 'المستوى الثاني', description: 'الصلاة والقرآن', sort: 2 },
+    { id: 'lv4', circle_id: 'c1', name: 'المستوى الرابع', description: 'الصلاة والأذكار والقرآن والقيام', sort: 4 },
+  ],
+  wird_level_items: [
+    { level_id: 'lv1', item_id: 'w-prayer', target: null, sort: 0 },
+    { level_id: 'lv2', item_id: 'w-prayer', target: null, sort: 0 },
+    { level_id: 'lv2', item_id: 'w-quran', target: 5, sort: 1 },
+    { level_id: 'lv4', item_id: 'w-prayer', target: null, sort: 0 },
+    { level_id: 'lv4', item_id: 'w-adhkar', target: null, sort: 1 },
+    { level_id: 'lv4', item_id: 'w-quran', target: 20, sort: 2 },
+    { level_id: 'lv4', item_id: 'w-qiyam', target: 2, sort: 3 },
+  ],
+  student_levels: [
+    ...students.slice(0, 7).map((s, i) => ({
+      id: `sl${i}`, circle_id: 'c1', student_id: s.id, level_id: i < 3 ? 'lv1' : i < 5 ? 'lv2' : 'lv4',
+      started_at: at(-20), ended_at: null,
+    })),
+    { id: 'sl-me', circle_id: 'c1', student_id: 'me', level_id: 'lv4', started_at: at(-20), ended_at: null },
+  ],
+  wird_logs: [
+    { id: 'wl1', student_id: 'me', item_id: 'w-prayer', day: new Date().toISOString().slice(0, 10), level_id: 'lv4', done: true, value: null },
+    { id: 'wl2', student_id: 'me', item_id: 'w-quran', day: new Date().toISOString().slice(0, 10), level_id: 'lv4', done: null, value: 12 },
+  ],
+  v_fee_dues: balance
+    .filter((b) => Number(b.dues_count) > 0)
+    .map((b, i) => ({
+      id: `due${i}`, enrollment_id: b.enrollment_id, circle_id: 'c1', student_id: b.student_id, full_name: b.full_name,
+      fee_plan_id: 'fp1', label: 'الفصل الدراسي الأول', period_start: '2026-09-01', period_end: '2026-12-31',
+      amount: 300, exempt_amount: b.exempt_reason ? 300 : 0, exempt_reason: b.exempt_reason, net: b.due, paid: b.paid,
+      remaining: b.remaining, status: b.status, last_paid_at: b.last_paid_at, created_at: at(-30),
+    })),
   payments: [{ id: 'p1', enrollment_id: 'en0', amount: 300, method: 'cash', receipt_no: 1001, paid_at: at(-9, 12), reversal_of: null, note: null }],
   v_enrollment_balance: balance,
   v_student_attendance_stats: students.map((s, i) => ({ circle_id: 'c1', student_id: s.id, total: 5, attended: 5 - (i % 4) })),
@@ -154,6 +200,7 @@ class Query implements PromiseLike<{ data: unknown; error: null; count: number |
   limit() { return this; }
   range(from: number) { this.lo = from; return this; }
   maybeSingle() { this.single = true; return this; }
+  single() { this.single = true; return this; }
   insert() { return this; }
   upsert() { return this; }
   update() { return this; }
@@ -182,7 +229,32 @@ const session = { user: { id: 'me', email: 'demo@majales.local' } };
 export const isConfigured = true;
 export const supabase = {
   from: (table: string) => new Query(table),
-  rpc: () => Promise.resolve({ data: 'new-id', error: null }),
+  rpc: (name: string) => {
+    if (name === 'attendance_report') {
+      return Promise.resolve({
+        data: students.map((s, i) => ({
+          student_id: s.id, full_name: s.full_name, sessions: 4, present: 4 - (i % 3) - (i % 2), late: i % 2,
+          excused: i === 5 ? 1 : 0, absent: i % 3 === 2 ? 1 : 0, unmarked: 0,
+          rate: Math.round(((4 - (i % 3)) / 4) * 100), avg_late_minutes: i % 2 ? 12 + i : null,
+        })),
+        error: null,
+      });
+    }
+    if (name === 'wird_report') {
+      return Promise.resolve({
+        data: students.map((s, i) => {
+          const required = i < 7 ? (i < 3 ? 9 : i < 5 ? 18 : 36) : 0;
+          const completed = Math.round(required * (0.95 - i * 0.08));
+          return {
+            student_id: s.id, full_name: s.full_name, level_name: i < 7 ? (i < 3 ? 'المستوى الأول' : i < 5 ? 'المستوى الثاني' : 'المستوى الرابع') : null,
+            required, completed: Math.max(0, completed), percent: required ? Math.max(0, Math.round((completed / required) * 100)) : null,
+          };
+        }),
+        error: null,
+      });
+    }
+    return Promise.resolve({ data: 1, error: null });
+  },
   auth: {
     // ‎?login في الرابط يعرض شاشة الدخول (بلا جلسة)
     getSession: () => Promise.resolve({ data: { session: /[?&]login(&|$)/.test(location.search) ? null : session } }),

@@ -15,7 +15,7 @@ export const ROLE_LABEL: Record<RoleKey, string> = {
   contact_officer: 'مسؤول التواصل',
   attendance_officer: 'مسؤول الحضور',
   finance_officer: 'مسؤول الرسوم',
-  tasks_officer: 'مسؤول التكاليف',
+  tasks_officer: 'مسؤول التكاليف والأوراد',
   transcription_officer: 'مسؤول التفريغ',
   member: 'عضو المجلس الخاص',
   student: 'طالب',
@@ -86,6 +86,9 @@ export interface Profile {
   source: string | null;
   notes: string | null;
   created_at: string;
+  username?: string | null;
+  account_kind?: 'student' | 'staff';
+  disabled_at?: string | null;
 }
 
 export interface Circle {
@@ -114,12 +117,14 @@ export interface Role {
   circle_id: string;
   role: RoleKey;
   revoked_at: string | null;
+  scope_all?: boolean;
 }
 
 export interface Assignment {
   id: string;
   role_id: string;
-  student_id: string;
+  student_id: string | null;
+  group_id: string | null;
   revoked_at: string | null;
 }
 
@@ -149,6 +154,10 @@ export interface AttendanceRow {
   student_id: string;
   state: AttendanceState;
   marked_at: string;
+  arrived_at: string | null;
+  marked_by: string | null;
+  updated_by: string | null;
+  updated_at: string | null;
 }
 
 export interface Payment {
@@ -160,6 +169,7 @@ export interface Payment {
   paid_at: string;
   reversal_of: string | null;
   note: string | null;
+  due_id: string | null;
 }
 
 export interface Task {
@@ -212,6 +222,9 @@ export interface EnrollmentBalance {
   last_paid_at: string | null;
   fee_plan_id: string | null;
   exempt_reason: string | null;
+  exempted?: number;
+  dues_count?: number;
+  status?: DueStatus | 'none';
 }
 
 export interface FeePlan {
@@ -221,4 +234,95 @@ export interface FeePlan {
   total_amount: number;
   installments: number;
   currency: string;
+}
+
+/* ---------- المجموعات ---------- */
+export interface StudentGroup {
+  id: string;
+  circle_id: string;
+  name: string;
+}
+
+/* ---------- الأوراد ---------- */
+export type WirdKind = 'check' | 'count' | 'amount';
+
+export const WIRD_KIND_LABEL: Record<WirdKind, string> = {
+  check: 'تم / لم يتم',
+  count: 'عدد',
+  amount: 'كمية',
+};
+
+export interface WorshipItem {
+  id: string;
+  circle_id: string;
+  name: string;
+  kind: WirdKind;
+  unit: string | null;
+  is_active: boolean;
+  sort: number;
+}
+
+export interface WirdLevel {
+  id: string;
+  circle_id: string;
+  name: string;
+  description: string | null;
+  sort: number;
+}
+
+export interface WirdLevelItem {
+  level_id: string;
+  item_id: string;
+  target: number | null;
+  sort: number;
+}
+
+export interface StudentLevel {
+  id: string;
+  circle_id: string;
+  student_id: string;
+  level_id: string;
+  started_at: string;
+  ended_at: string | null;
+}
+
+export interface WirdLog {
+  id: string;
+  student_id: string;
+  item_id: string;
+  day: string;
+  level_id: string | null;
+  done: boolean | null;
+  value: number | null;
+}
+
+/* ---------- الرسوم المستحقة ---------- */
+export type DueStatus = 'paid' | 'partial' | 'unpaid' | 'exempt';
+
+export const DUE_STATUS_LABEL: Record<DueStatus | 'none', string> = {
+  paid: 'مسددة',
+  partial: 'مسددة جزئيًا',
+  unpaid: 'غير مسددة',
+  exempt: 'معفى',
+  none: 'لا رسوم',
+};
+
+export interface FeeDue {
+  id: string;
+  enrollment_id: string;
+  circle_id: string;
+  student_id: string;
+  full_name: string;
+  fee_plan_id: string | null;
+  label: string;
+  period_start: string | null;
+  period_end: string | null;
+  amount: number;
+  exempt_amount: number;
+  exempt_reason: string | null;
+  net: number;
+  paid: number;
+  remaining: number;
+  status: DueStatus;
+  last_paid_at: string | null;
 }

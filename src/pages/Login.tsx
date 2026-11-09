@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Loader2, ShieldCheck, UsersRound, Wallet } from 'lucide-react';
 import { supabase, isConfigured } from '@/lib/supabase';
 import { authMessage } from '@/lib/errors';
+import { toLoginEmail } from '@/lib/members';
 import { LogoMark, Wordmark } from '@/components/Logo';
 
 const MIN_PASSWORD = 8;
@@ -37,7 +38,8 @@ export default function Login() {
       const cleanEmail = email.trim();
       const { error } =
         mode === 'signin'
-          ? await supabase.auth.signInWithPassword({ email: cleanEmail, password })
+          ? // العاملون يدخلون باسم المستخدم، والطلاب ببريدهم
+            await supabase.auth.signInWithPassword({ email: toLoginEmail(cleanEmail), password })
           : await supabase.auth.signUp({
               email: cleanEmail,
               password,
@@ -139,12 +141,16 @@ export default function Login() {
             )}
 
             <div className="mb-4">
-              <label className="label" htmlFor="login-email">البريد الإلكتروني</label>
+              <label className="label" htmlFor="login-email">
+                {isSignin ? 'اسم المستخدم أو البريد الإلكتروني' : 'البريد الإلكتروني'}
+              </label>
               <input
                 id="login-email"
                 autoComplete="email"
                 className="field"
-                type="email"
+                type={isSignin ? 'text' : 'email'}
+                autoCapitalize="none"
+                spellCheck={false}
                 dir="ltr"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}

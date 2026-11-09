@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Clock3, PencilLine } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { fetchAll, selectIn } from '@/lib/query';
 import { useApp } from '@/store/session';
 import { useCurrentSession, useTemplates } from '@/hooks/useSessions';
-import { Card, Chip, Empty, Loading, PageHead, Stat } from '@/components/ui';
+import { Card, Chip, Empty, Loading, PageHead, Sheet, Stat } from '@/components/ui';
 import { writeOrQueue, pendingCount } from '@/lib/offline';
 import { fillTemplate, isValidPhone, openWhatsApp } from '@/lib/whatsapp';
-import { formatDateTime } from '@/lib/format';
+import { formatDateTime, formatTime } from '@/lib/format';
 import {
   ATTENDANCE_CYCLE,
   ATTENDANCE_LABEL,
@@ -16,9 +17,27 @@ import {
 
 interface Row extends Profile {
   state: AttendanceState | null;
+  arrived_at: string | null;
+  marked_by: string | null;
+  marked_at: string | null;
+  updated_by: string | null;
+  updated_at: string | null;
   confirmed: boolean;
   history: string;
 }
+
+interface Mark {
+  student_id: string;
+  state: AttendanceState;
+  arrived_at: string | null;
+  marked_by: string | null;
+  marked_at: string | null;
+  updated_by: string | null;
+  updated_at: string | null;
+}
+
+/** الحاضر والمتأخر لهما وقت وصول؛ الغائب والمعتذر لا */
+const HAS_TIME: AttendanceState[] = ['present', 'late'];
 
 const TONE: Record<AttendanceState, string> = {
   present: 'bg-emerald-600 text-white',
@@ -32,6 +51,8 @@ export default function Attendance() {
   const { session, reload } = useCurrentSession();
   const templates = useTemplates();
   const [rows, setRows] = useState<Row[] | null>(null);
+  const [names, setNames] = useState<Map<string, string>>(new Map());
+  const [editing, setEditing] = useState<Row | null>(null);
 
   const circle = circles.find((c) => c.id === activeCircleId);
 
@@ -53,8 +74,11 @@ export default function Attendance() {
 
     const [people, marks, confirms, stats] = await Promise.all([
       selectIn<Profile>('profiles', '*', 'id', ids),
-      fetchAll<{ student_id: string; state: AttendanceState }>(() =>
-        supabase.from('attendance').select('id, student_id, state').eq('session_id', session.id),
+      fetchAll<Mark>(() =>
+        supabase
+          .from('attendance')
+          .select('id, student_id, state, arrived_at, marked_by, marked_at, updated_by, updated_at')
+          .eq('session_id', session.id),
       ),
       fetchAll<{ student_id: string }>(() =>
         supabase
@@ -74,7 +98,11 @@ export default function Attendance() {
       ),
     ]);
 
-    const markMap = new Map(marks.map((m) => [m.student_id, m.state]));
+    const markMap = new Map(marks.map((m) => [m.student_id, m]));
+    // أسماء من سجّل ومن عدّل (يظهر ما تسمح القاعدة برؤيته)
+    const actorIds = [...new Set(marks.flatMap((m) => [m.marked_by, m.updated_by]).filter(Boolean) as string[])];
+    const actors = await selectIn<{ id: string; full_name: string }>('profiles', 'id, full_name', 'id', actorIds);
+    setNames(new Map(actors.map((a) => [a.id, a.full_name])));
     const confirmSet = new Set(confirms.map((c) => c.student_id));
     const seen = new Map(stats.map((s) => [s.student_id, s]));
 
@@ -82,7 +110,12 @@ export default function Attendance() {
       const h = seen.get(p.id);
       return {
         ...p,
-        state: markMap.get(p.id) ?? null,
+        state: markMap.get(p.id)?.state ?? null,
+        arrived_at: markMap.get(p.id)?.arrived_at ?? null,
+        marked_by: markMap.get(p.id)?.marked_by ?? null,
+        marked_at: markMap.get(p.id)?.marked_at ?? null,
+        updated_by: markMap.get(p.id)?.updated_by ?? null,
+        updated_at: markMap.get(p.id)?.updated_at ?? null,
         confirmed: confirmSet.has(p.id),
         history: h ? `${h.attended} من ${h.total}` : 'أول مجلس',
       };
@@ -108,29 +141,38 @@ export default function Attendance() {
     };
   }, [rows]);
 
-  async function cycle(row: Row) {
-    if (!session) return;
-    const idx = row.state ? ATTENDANCE_CYCLE.indexOf(row.state) : -1;
-    const next = ATTENDANCE_CYCLE[(idx + 1) % ATTENDANCE_CYCLE.length];
-
-    setRows((prev) => prev?.map((r) => (r.id === row.id ? { ...r, state: next } : r)) ?? prev);
+  /** يحفظ الحالة ووقت الوصول (أو يضعهما في الطابور بلا إنترنت) */
+  async function save(row: Row, state: AttendanceState, arrivedAt: string | null): Promise<boolean> {
+    if (!session) return false;
+    const arrived = HAS_TIME.includes(state) ? arrivedAt : null;
+    setRows((prev) => prev?.map((r) => (r.id === row.id ? { ...r, state, arrived_at: arrived } : r)) ?? prev);
 
     const result = await writeOrQueue(
       'attendance',
       {
         session_id: session.id,
         student_id: row.id,
-        state: next,
+        state,
+        arrived_at: arrived,
         marked_by: profile?.id ?? null,
         marked_at: new Date().toISOString(),
       },
       'session_id,student_id',
     );
-    if (result === 'rejected') {
-      setRows((prev) => prev?.map((r) => (r.id === row.id ? { ...r, state: row.state } : r)) ?? prev);
-      alert('رفضت القاعدة التسجيل. تأكد أن لك دور مسؤول الحضور في هذا المجلس.');
-    }
     void pendingCount().then(setPendingSync);
+    if (result === 'rejected') {
+      setRows((prev) => prev?.map((r) => (r.id === row.id ? row : r)) ?? prev);
+      alert('رفضت القاعدة التسجيل. تأكد أن هذا الطالب ضمن نطاقك، وأن وقت الوصول قريب من موعد الجلسة.');
+      return false;
+    }
+    return true;
+  }
+
+  async function cycle(row: Row) {
+    const idx = row.state ? ATTENDANCE_CYCLE.indexOf(row.state) : -1;
+    const next = ATTENDANCE_CYCLE[(idx + 1) % ATTENDANCE_CYCLE.length];
+    // أول تسجيل حضور يأخذ وقت اللحظة؛ تبديل حاضر↔متأخر يحتفظ بالوقت الأول
+    await save(row, next, HAS_TIME.includes(next) ? (row.arrived_at ?? new Date().toISOString()) : null);
   }
 
   async function closeSheet() {
@@ -206,8 +248,28 @@ export default function Attendance() {
                   <span className="truncate font-semibold">{r.full_name}</span>
                   {r.confirmed && <Chip tone="info">أكّد الحضور</Chip>}
                 </div>
-                <p className="text-xs text-ink-soft">حضر {r.history}</p>
+                <p className="flex flex-wrap items-center gap-x-2 text-xs text-ink-soft">
+                  <span>حضر {r.history}</span>
+                  {r.arrived_at && (
+                    <span className="flex items-center gap-1 text-ink">
+                      <Clock3 size={12} />
+                      وصل {formatTime(r.arrived_at)}
+                    </span>
+                  )}
+                  {r.updated_at && <span className="text-ink-faint">· عُدّل</span>}
+                </p>
               </div>
+
+              {r.state && (
+                <button
+                  onClick={() => setEditing(r)}
+                  aria-label={`تعديل سجل ${r.full_name}`}
+                  title="تعديل الحالة أو وقت الوصول"
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-ink-faint transition hover:bg-stone-100 hover:text-ink"
+                >
+                  <PencilLine size={17} />
+                </button>
+              )}
 
               {closed && r.state === 'absent' && isValidPhone(r.phone) && absentTemplate && (
                 <button
@@ -231,8 +293,113 @@ export default function Attendance() {
       )}
 
       <p className="mt-4 text-center text-xs text-ink-faint">
-        الضغط على الزر يدوّر الحالة: حاضر ← متأخر ← بعذر ← غائب. يعمل بلا إنترنت ويزامن تلقائيًا.
+        الضغط على الزر يدوّر الحالة: حاضر ← متأخر ← بعذر ← غائب، ويُسجَّل وقت الوصول تلقائيًا. القلم لتعديل الحالة أو
+        الوقت. يعمل بلا إنترنت ويزامن تلقائيًا.
       </p>
+
+      {editing && (
+        <EditMark
+          row={editing}
+          heldAt={session.held_at}
+          names={names}
+          onClose={() => setEditing(null)}
+          onSave={async (state, arrivedAt) => {
+            if (await save(editing, state, arrivedAt)) {
+              setEditing(null);
+              void load();
+            }
+          }}
+        />
+      )}
     </>
+  );
+}
+
+/** HH:MM محلي من ISO */
+const hhmm = (iso: string) => {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
+function EditMark({
+  row,
+  heldAt,
+  names,
+  onClose,
+  onSave,
+}: {
+  row: Row;
+  heldAt: string;
+  names: Map<string, string>;
+  onClose: () => void;
+  onSave: (state: AttendanceState, arrivedAt: string | null) => Promise<void>;
+}) {
+  const [state, setState] = useState<AttendanceState>(row.state ?? 'present');
+  const [time, setTime] = useState(hhmm(row.arrived_at ?? heldAt));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit() {
+    setErr(null);
+    let arrived: string | null = null;
+    if (HAS_TIME.includes(state)) {
+      if (!/^\d{2}:\d{2}$/.test(time)) return setErr('اكتب وقت الوصول.');
+      // الوقت على تاريخ الجلسة نفسها
+      const base = new Date(heldAt);
+      const [h, m] = time.split(':').map(Number);
+      const d = new Date(base.getFullYear(), base.getMonth(), base.getDate(), h, m);
+      if (Math.abs(d.getTime() - base.getTime()) > 12 * 3600_000) return setErr('وقت الوصول بعيد عن موعد الجلسة.');
+      arrived = d.toISOString();
+    }
+    setBusy(true);
+    await onSave(state, arrived);
+    setBusy(false);
+  }
+
+  const who = (id: string | null) => (id ? (names.get(id) ?? 'عضو في الفريق') : '—');
+
+  return (
+    <Sheet open onClose={onClose} title={row.full_name}>
+      <p className="label">الحالة</p>
+      <div className="mb-4 grid grid-cols-4 gap-2">
+        {ATTENDANCE_CYCLE.map((s) => (
+          <button
+            key={s}
+            onClick={() => setState(s)}
+            aria-pressed={state === s}
+            className={`rounded-xl py-2.5 text-sm font-semibold transition ${
+              state === s ? TONE[s] : 'border border-line bg-white text-ink-soft'
+            }`}
+          >
+            {ATTENDANCE_LABEL[s]}
+          </button>
+        ))}
+      </div>
+
+      {HAS_TIME.includes(state) && (
+        <div className="mb-4">
+          <label className="label" htmlFor="arr-time">وقت الوصول الفعلي</label>
+          <input id="arr-time" className="field" type="time" dir="ltr" value={time} onChange={(e) => setTime(e.target.value)} />
+          <p className="mt-1 text-xs text-ink-faint">موعد الجلسة {formatTime(heldAt)}.</p>
+        </div>
+      )}
+
+      <div className="mb-4 space-y-1 rounded-xl bg-stone-50 p-3 text-xs text-ink-soft">
+        <p>
+          سجّله: <span className="text-ink">{who(row.marked_by)}</span>
+          {row.marked_at && ` · ${formatDateTime(row.marked_at)}`}
+        </p>
+        {row.updated_at && (
+          <p>
+            آخر تعديل: <span className="text-ink">{who(row.updated_by)}</span> · {formatDateTime(row.updated_at)}
+          </p>
+        )}
+      </div>
+
+      {err && <p className="mb-3 text-sm text-rose-700">{err}</p>}
+      <button className="btn-primary w-full" disabled={busy} onClick={() => void submit()}>
+        {busy ? 'جارٍ الحفظ…' : 'حفظ التعديل'}
+      </button>
+    </Sheet>
   );
 }

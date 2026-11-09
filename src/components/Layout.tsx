@@ -1,7 +1,9 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
+  BookOpenCheck,
   Building2,
+  ChartPie,
   ChartColumn,
   ChevronsRight,
   ClipboardCheck,
@@ -37,8 +39,16 @@ const NAV: NavItem[] = [
   { to: '/fees', label: 'الرسوم', icon: Wallet, roles: ['finance_officer'], group: 'daily' },
   { to: '/tasks', label: 'التكاليف', icon: ListChecks, roles: ['tasks_officer'], group: 'daily' },
   { to: '/summaries', label: 'التفريغ', icon: NotebookPen, roles: ['transcription_officer'], group: 'daily' },
+  { to: '/wird', label: 'الأوراد', icon: BookOpenCheck, roles: 'all', group: 'daily' },
   { to: '/report', label: 'تقرير المجلس', icon: ChartColumn, roles: ['sheikh', 'admin'], group: 'oversight' },
   { to: '/team', label: 'أداء الفريق', icon: UsersRound, roles: ['sheikh', 'admin'], group: 'oversight' },
+  {
+    to: '/reports',
+    label: 'التقارير',
+    icon: ChartPie,
+    roles: ['sheikh', 'admin', 'attendance_officer', 'finance_officer', 'tasks_officer'],
+    group: 'oversight',
+  },
   { to: '/admin', label: 'الإدارة', icon: ShieldCheck, roles: ['admin'], group: 'admin' },
 ];
 
